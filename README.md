@@ -73,6 +73,16 @@ of failing the request. Results are cached in memory for `ASTROSCOPE_CACHE_TTL` 
 The HiPS surveys offered per pane, the coverage (MOC) overlays, and the default 2x2 layout.
 Edit `backend/app/services/surveys.py` to change them.
 
+### Coverage overlays: `GET /api/overlays`, `GET /api/overlays/{id}/moc`
+
+Aladin Lite's `A.MOCFromURL` needs a FITS MOC, so overlays are served by the backend rather than
+fetched from CDS directly. For each overlay the backend searches the CDS MOCServer with the
+expressions listed in `surveys.py` (tried in order, e.g. `ID=CDS/B/hst/*`), keeps the matching
+record with the widest sky coverage, downloads its MOC as FITS and caches it for a day.
+`GET /api/overlays` shows which record each overlay resolved to, which is the first thing to
+check when an overlay shows "failed" in a pane's MOC menu. Adjust the expressions if the
+resolved record is not the one you want.
+
 ## Viewer synchronisation
 
 Aladin Lite v3 has no built-in view linking, so `frontend/src/lib/viewSync.ts` implements it on
@@ -94,4 +104,6 @@ is tested against faked service responses. The first live run should confirm:
 
 1. `GET /api/resolve?q=NGC%201365` returns `main_id = "NGC  1365"`, z ~ 0.0055, type `SB(s)b`,
    and `FCC 121` under environment memberships.
-2. The MOC overlay URLs in `surveys.py` resolve on the CDS MOC server (adjust the IDs if not).
+2. `GET /api/overlays` reports `resolved: true` with a sensible record for each overlay, and
+   ticking an overlay in a pane draws footprints. The proxy and rendering path were verified
+   against a local stand-in MOC server; only the real CDS record IDs remain to be confirmed.

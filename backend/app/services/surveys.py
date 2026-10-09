@@ -1,7 +1,10 @@
 """Catalog of HiPS surveys and coverage overlays offered to the Aladin Lite viewer.
 
 HiPS identifiers are the CDS ``P/...`` short IDs understood by Aladin Lite v3's
-``setImageSurvey``/``A.imageHiPS``. Overlay MOCs are fetched by the browser directly.
+``setBaseImageLayer``. Overlays are resolved against the CDS MOCServer at request time (see
+``mocserver.py``): each overlay lists search expressions tried in order, and the record with the
+widest sky coverage wins. The browser then fetches the MOC through ``/api/overlays/{id}/moc``
+(same origin, FITS format) which is what Aladin Lite's ``A.MOCFromURL`` needs.
 """
 
 from __future__ import annotations
@@ -20,9 +23,15 @@ class Survey(BaseModel):
 class Overlay(BaseModel):
     id: str
     label: str
-    moc_url: str = Field(description="URL of a MOC (FITS or JSON) describing the coverage")
     color: str
     description: str = ""
+    expressions: list[str] = Field(
+        description="CDS MOCServer search expressions, tried in order, to find the coverage record"
+    )
+
+    @property
+    def moc_path(self) -> str:
+        return f"/api/overlays/{self.id}/moc"
 
 
 SURVEYS: list[Survey] = [
@@ -58,41 +67,52 @@ SURVEYS: list[Survey] = [
     Survey(id="P/Fermi/color", label="Fermi LAT", band="gamma-ray"),
 ]
 
-# Coverage overlays (MOCs). URLs point at the CDS MOCServer, which serves the coverage of any
-# registered resource as a MOC. These were not reachable from the development sandbox, so the
-# IDs below should be checked against https://alasky.cds.unistra.fr/MocServer/query?expr=... .
-_MOCSERVER = "https://alasky.cds.unistra.fr/MocServer/query?ID={id}&get=moc&fmt=json"
-
 OVERLAYS: list[Overlay] = [
     Overlay(
         id="hst",
-        label="HST observations (footprints)",
+        label="HST observations",
         color="#38bdf8",
-        moc_url=_MOCSERVER.format(id="CDS/B/hst/hstlog"),
-        description="Coverage of the HST observation log (VizieR B/hst)",
+        description="Sky coverage of the HST observation log",
+        expressions=["ID=CDS/B/hst/*", "ID=*hst*&&dataproduct_type=catalog", "ID=*HST*"],
     ),
     Overlay(
         id="jwst",
-        label="JWST observations (footprints)",
+        label="JWST observations",
         color="#f472b6",
-        moc_url=_MOCSERVER.format(id="CDS/B/jwst/jwstlog"),
-        description="Coverage of the JWST observation log (VizieR B/jwst)",
+        description="Sky coverage of the JWST observation log",
+        expressions=["ID=CDS/B/jwst/*", "ID=*jwst*&&dataproduct_type=catalog", "ID=*JWST*"],
     ),
     Overlay(
         id="muse",
         label="ESO MUSE coverage",
         color="#a3e635",
-        moc_url=_MOCSERVER.format(id="ESO/MUSE"),
-        description="Coverage of public MUSE observations",
+        description="Sky coverage of MUSE observations",
+        expressions=["ID=*MUSE*", "obs_title=*MUSE*", "ID=CDS/B/eso/*"],
     ),
     Overlay(
         id="alma",
         label="ALMA coverage",
         color="#fb923c",
-        moc_url=_MOCSERVER.format(id="ALMA/ALMA"),
-        description="Coverage of public ALMA observations",
+        description="Sky coverage of ALMA observations",
+        expressions=["ID=*ALMA*&&dataproduct_type=catalog", "ID=*ALMA*", "obs_title=*ALMA*"],
+    ),
+    Overlay(
+        id="chandra",
+        label="Chandra observations",
+        color="#c084fc",
+        description="Sky coverage of the Chandra observation log",
+        expressions=["ID=CDS/B/chandra/*", "ID=*chandra*&&dataproduct_type=catalog"],
+    ),
+    Overlay(
+        id="xmm",
+        label="XMM-Newton observations",
+        color="#facc15",
+        description="Sky coverage of the XMM-Newton observation log",
+        expressions=["ID=CDS/B/xmm/*", "ID=*xmm*&&dataproduct_type=catalog"],
     ),
 ]
+
+OVERLAY_BY_ID: dict[str, Overlay] = {o.id: o for o in OVERLAYS}
 
 DEFAULT_GRID: list[str] = [
     "P/DSS2/color",

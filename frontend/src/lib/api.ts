@@ -2,6 +2,11 @@ import type { ResolvedTarget, SurveyCatalog } from "../types";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
+/** Turn an API-relative path (e.g. "/api/overlays/hst/moc") into a fetchable URL. */
+export function apiUrl(path: string): string {
+  return path.startsWith("/") ? `${BASE}${path}` : path;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {

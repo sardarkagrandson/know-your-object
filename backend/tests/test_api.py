@@ -54,3 +54,4 @@ def test_surveys_endpoint(monkeypatch, settings):
     ids = {s["id"] for s in body["surveys"]}
     assert set(body["default_grid"]) <= ids
     assert body["overlays"]
+    assert all("moc_url" in o for o in body["overlays"])

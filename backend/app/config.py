@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     simbad_tap_url: str = Field(
         default="https://simbad.cds.unistra.fr/simbad/sim-tap", alias="ASTROSCOPE_SIMBAD_TAP_URL"
     )
+    mocserver_url: str = Field(
+        default="https://alasky.cds.unistra.fr/MocServer/query", alias="ASTROSCOPE_MOCSERVER_URL"
+    )
 
     @property
     def cors_origin_list(self) -> list[str]:

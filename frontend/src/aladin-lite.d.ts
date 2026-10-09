@@ -42,6 +42,7 @@ declare module "aladin-lite" {
 
   export interface AladinMOC {
     name?: string;
+    skyFrac?: number;
   }
 
   export interface AladinInstance {
@@ -67,6 +68,8 @@ declare module "aladin-lite" {
     MOCFromURL(
       url: string,
       options?: { name?: string; color?: string; lineWidth?: number; opacity?: number; fill?: boolean },
+      onSuccess?: (moc: AladinMOC) => void,
+      onError?: (moc: AladinMOC) => void,
     ): AladinMOC;
     catalog(options?: {
       name?: string;

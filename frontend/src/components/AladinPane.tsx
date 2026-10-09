@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AladinCatalog, AladinInstance, AladinMOC, AladinStatic } from "aladin-lite";
 import { loadAladin } from "../lib/aladin";
+import { apiUrl } from "../lib/api";
 import type { ViewSync } from "../lib/viewSync";
 import type { Overlay, Survey } from "../types";
 
@@ -61,6 +62,18 @@ export default function AladinPane({
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showOverlays, setShowOverlays] = useState(false);
+  const [overlayStatus, setOverlayStatus] = useState<Record<string, "loading" | "ok" | "error">>({});
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the overlay menu when clicking anywhere else.
+  useEffect(() => {
+    if (!showOverlays) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowOverlays(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [showOverlays]);
 
   // Create the Aladin instance once and register it with the sync controller.
   useEffect(() => {
@@ -124,24 +137,34 @@ export default function AladinPane({
           console.warn(`Pane ${id}: could not remove overlay ${key}`, err);
         }
         mocsRef.current.delete(key);
+        setOverlayStatus((s) => {
+          const next = { ...s };
+          delete next[key];
+          return next;
+        });
       }
     }
     for (const key of wanted) {
       if (mocsRef.current.has(key)) continue;
       const def = overlays.find((o) => o.id === key);
       if (!def) continue;
+      const url = apiUrl(def.moc_url);
+      setOverlayStatus((s) => ({ ...s, [key]: "loading" }));
       try {
-        const moc = A.MOCFromURL(def.moc_url, {
-          name: def.label,
-          color: def.color,
-          lineWidth: 1.5,
-          opacity: 0.35,
-          fill: true,
-        });
+        const moc = A.MOCFromURL(
+          url,
+          { name: def.label, color: def.color, lineWidth: 1.5, opacity: 0.35, fill: true },
+          () => setOverlayStatus((s) => ({ ...s, [key]: "ok" })),
+          () => {
+            console.error(`Pane ${id}: overlay ${key} failed to load from ${url}`);
+            setOverlayStatus((s) => ({ ...s, [key]: "error" }));
+          },
+        );
         aladin.addMOC(moc);
         mocsRef.current.set(key, moc);
       } catch (err) {
-        console.error(`Pane ${id}: could not load overlay ${key} from ${def.moc_url}`, err);
+        console.error(`Pane ${id}: could not load overlay ${key} from ${url}`, err);
+        setOverlayStatus((s) => ({ ...s, [key]: "error" }));
       }
     }
   }, [ready, enabledOverlays, overlays, id]);
@@ -192,14 +215,16 @@ export default function AladinPane({
             {survey.band}
           </span>
         )}
-        <div className="relative">
+        <div className="relative" ref={menuRef}>
           <button
             type="button"
             onClick={() => setShowOverlays((v) => !v)}
             className={`rounded border px-1.5 py-0.5 ${
-              enabledOverlays.length
-                ? "border-sky-600 text-sky-300"
-                : "border-slate-700 text-slate-300"
+              Object.values(overlayStatus).includes("error")
+                ? "border-rose-600 text-rose-300"
+                : enabledOverlays.length
+                  ? "border-sky-600 text-sky-300"
+                  : "border-slate-700 text-slate-300"
             } hover:bg-slate-800`}
             title="Coverage overlays"
           >
@@ -216,10 +241,19 @@ export default function AladinPane({
                   />
                   <span className="inline-block h-2 w-2 rounded-sm" style={{ background: o.color }} />
                   <span className="text-slate-200">{o.label}</span>
+                  {overlayStatus[o.id] === "loading" && (
+                    <span className="ml-auto text-[10px] text-slate-500">loading…</span>
+                  )}
+                  {overlayStatus[o.id] === "error" && (
+                    <span className="ml-auto text-[10px] text-rose-400" title={`${apiUrl(o.moc_url)} failed`}>
+                      failed
+                    </span>
+                  )}
                 </label>
               ))}
               <p className="mt-1 text-[10px] text-slate-500">
-                Coverage footprints fetched from the CDS MOC server.
+                Coverage from the CDS MOC server via the AstroScope API. See /api/overlays for the
+                resolved records.
               </p>
             </div>
           )}

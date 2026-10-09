@@ -82,9 +82,10 @@ export interface Survey {
 export interface Overlay {
   id: string;
   label: string;
-  moc_url: string;
   color: string;
   description: string;
+  /** API-relative path serving the coverage as a FITS MOC (see apiUrl()). */
+  moc_url: string;
 }
 
 export interface SurveyCatalog {
