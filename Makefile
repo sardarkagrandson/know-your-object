@@ -4,7 +4,7 @@
 PY ?= $(shell for p in python3.13 python3.12 python3.11 python3 python; do \
 	if command -v $$p >/dev/null 2>&1 && $$p -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then echo $$p; break; fi; done)
 VENV ?= .venv
-BIN := $(VENV)/bin
+BIN := $(abspath $(VENV))/bin
 
 .PHONY: help setup setup-backend setup-frontend backend frontend dev test test-backend test-frontend lint build
 
@@ -32,7 +32,7 @@ setup-frontend:
 	cd frontend && npm install
 
 backend:
-	cd backend && ../$(BIN)/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	cd backend && $(BIN)/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 frontend:
 	cd frontend && npm run dev
@@ -40,13 +40,13 @@ frontend:
 test: test-backend test-frontend
 
 test-backend:
-	cd backend && ../$(BIN)/pytest -q
+	cd backend && $(BIN)/pytest -q
 
 test-frontend:
 	cd frontend && npx vitest run
 
 lint:
-	cd backend && ../$(BIN)/ruff check app tests && ../$(BIN)/ruff format --check app tests
+	cd backend && $(BIN)/ruff check app tests && $(BIN)/ruff format --check app tests
 	cd frontend && npx tsc -b
 
 build:
