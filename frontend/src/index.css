@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+/* Aladin Lite injects its own stylesheet; keep its container filling the pane. */
+.aladin-pane .aladin-container {
+  width: 100% !important;
+  height: 100% !important;
+}
