@@ -34,7 +34,8 @@ frontend/           React 18 + TypeScript + Tailwind, Vite
 
 ```bash
 cp .env.example .env            # fill in ADS_DEV_KEY / LLM keys later (not needed for modules 1-2)
-make setup                      # python venv + npm install
+make setup                      # python venv + npm install (picks the first Python 3.11+ on PATH)
+# make setup PY=python3.12      # or name the interpreter explicitly, e.g. inside a conda env
 make backend                    # http://localhost:8000  (OpenAPI docs at /docs)
 make frontend                   # http://localhost:5173  (proxies /api to the backend)
 ```
