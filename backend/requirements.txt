@@ -10,3 +10,4 @@ pandas>=2.2
 numpy>=1.26
 httpx>=0.27
 ads>=0.12.6
+mocpy>=0.17

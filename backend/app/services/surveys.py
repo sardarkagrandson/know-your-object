@@ -67,34 +67,38 @@ SURVEYS: list[Survey] = [
     Survey(id="P/Fermi/color", label="Fermi LAT", band="gamma-ray"),
 ]
 
+# Expressions were chosen from a live listing of the MOCServer (Oct 2026). The server has no
+# single "all observations" record for JWST, MUSE or ALMA, so those overlays union several
+# records (per-instrument HiPS coverage maps for HST/JWST, CDS cube collections for MUSE/ALMA).
 OVERLAYS: list[Overlay] = [
     Overlay(
         id="hst",
-        label="HST observations",
+        label="HST imaging coverage",
         color="#38bdf8",
-        description="Sky coverage of the HST observation log",
-        expressions=["ID=CDS/B/hst/*", "ID=*hst*&&dataproduct_type=catalog", "ID=*HST*"],
+        description="Union of the ESA HST per-instrument image coverage maps",
+        expressions=["ID=ESAVO/P/HST/*", "ID=CDS/B/hst/*"],
     ),
     Overlay(
         id="jwst",
-        label="JWST observations",
+        label="JWST imaging coverage",
         color="#f472b6",
-        description="Sky coverage of the JWST observation log",
-        expressions=["ID=CDS/B/jwst/*", "ID=*jwst*&&dataproduct_type=catalog", "ID=*JWST*"],
+        description="Union of the ESA JWST NIRCam / MIRI / NIRISS image coverage maps",
+        expressions=["ID=ESAVO/P/JWST/*"],
     ),
     Overlay(
         id="muse",
-        label="ESO MUSE coverage",
+        label="MUSE cube coverage",
         color="#a3e635",
-        description="Sky coverage of MUSE observations",
-        expressions=["ID=*MUSE*", "obs_title=*MUSE*", "ID=CDS/B/eso/*"],
+        description="Coverage of the public MUSE and MUSE-DEEP cube collections at CDS",
+        expressions=["ID=CDS/C/MUSE*"],
     ),
     Overlay(
         id="alma",
-        label="ALMA coverage",
+        label="ALMA (CDS cube collections)",
         color="#fb923c",
-        description="Sky coverage of ALMA observations",
-        expressions=["ID=*ALMA*&&dataproduct_type=catalog", "ID=*ALMA*", "obs_title=*ALMA*"],
+        description="PHANGS-ALMA and ALMA-IMF cube collections only; full ALMA footprints "
+        "come from the ALMA archive in the archive module",
+        expressions=["ID=CDS/C/*ALMA*"],
     ),
     Overlay(
         id="chandra",

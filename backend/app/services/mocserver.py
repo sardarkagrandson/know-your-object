@@ -8,6 +8,8 @@ that coverage as a FITS MOC, which is the format Aladin Lite's ``A.MOCFromURL`` 
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -52,7 +54,7 @@ class MocServerClient:
         self.base_url = base_url
         self.timeout = timeout
         self.cache_ttl = cache_ttl
-        self._record_cache: dict[str, tuple[float, MocRecord | None]] = {}
+        self._record_cache: dict[str, tuple[float, list[MocRecord]]] = {}
         self._moc_cache: dict[str, tuple[float, bytes]] = {}
         self._lock = threading.Lock()
 
@@ -101,14 +103,15 @@ class MocServerClient:
         return data
 
     # -- resolution ----------------------------------------------------------------------------
-    def resolve(self, key: str, expressions: list[str]) -> MocRecord | None:
-        """Try each expression in turn; return the matching record with the widest coverage."""
+    def resolve(self, key: str, expressions: list[str], max_records: int = 25) -> list[MocRecord]:
+        """Try each expression in turn; return every usable record matched by the first one
+        that yields any, widest coverage first (capped at ``max_records``)."""
         now = time.monotonic()
         with self._lock:
             hit = self._record_cache.get(key)
-            if hit and hit[0] > now and hit[1] is not None:
-                return hit[1]
-        chosen: MocRecord | None = None
+            if hit and hit[0] > now and hit[1]:
+                return list(hit[1])
+        chosen: list[MocRecord] = []
         for expr in expressions:
             try:
                 records = self.search(expr)
@@ -119,19 +122,70 @@ class MocServerClient:
             if not usable:
                 continue
             usable.sort(key=lambda r: r.sky_fraction or 0, reverse=True)
-            chosen = usable[0]
+            chosen = usable[:max_records]
             log.info(
-                "Overlay %s resolved to %s (%s, sky fraction %.4g) via %r",
+                "Overlay %s resolved via %r to %d record(s): %s",
                 key,
-                chosen.id,
-                chosen.title,
-                chosen.sky_fraction or 0,
                 expr,
+                len(chosen),
+                ", ".join(r.id for r in chosen),
             )
             break
         with self._lock:
             self._record_cache[key] = (now + self.cache_ttl, chosen)
-        return chosen
+        return list(chosen)
+
+    def fetch_union_fits(self, record_ids: list[str]) -> bytes:
+        """The union of several records' coverages as one FITS MOC."""
+        if not record_ids:
+            raise ValueError("No records to fetch")
+        key = "union:" + "|".join(sorted(record_ids))
+        now = time.monotonic()
+        with self._lock:
+            hit = self._moc_cache.get(key)
+            if hit and hit[0] > now:
+                return hit[1]
+        blobs: list[bytes] = []
+        for rid in record_ids:
+            try:
+                blobs.append(self.fetch_moc_fits(rid))
+            except Exception as exc:  # noqa: BLE001 - skip a broken member, keep the rest
+                log.warning("Skipping MOC %s: %s", rid, exc)
+        if not blobs:
+            raise ValueError("None of the MOCs could be fetched")
+        data = blobs[0] if len(blobs) == 1 else union_fits_mocs(blobs)
+        with self._lock:
+            self._moc_cache[key] = (now + self.cache_ttl, data)
+        return data
+
+
+def union_fits_mocs(blobs: list[bytes]) -> bytes:
+    """Union FITS MOCs (as bytes) into a single FITS MOC using mocpy."""
+    import io
+
+    from mocpy import MOC
+
+    mocs = []
+    tmp_paths: list[str] = []
+    try:
+        for blob in blobs:
+            fd, path = tempfile.mkstemp(suffix=".fits")
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(blob)
+            tmp_paths.append(path)
+            mocs.append(MOC.load(path, format="fits"))
+    finally:
+        for path in tmp_paths:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+    result = mocs[0]
+    for m in mocs[1:]:
+        result = result.union(m)
+    buf = io.BytesIO()
+    result.serialize(format="fits").writeto(buf)
+    return buf.getvalue()
 
 
 _client: MocServerClient | None = None

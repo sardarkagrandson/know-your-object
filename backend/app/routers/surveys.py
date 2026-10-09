@@ -26,13 +26,17 @@ class SurveyCatalog(BaseModel):
     default_grid: list[str]
 
 
+class OverlayRecord(BaseModel):
+    id: str
+    title: str | None = None
+    sky_fraction: float | None = None
+
+
 class OverlayStatus(BaseModel):
     id: str
     label: str
     resolved: bool
-    record_id: str | None = None
-    title: str | None = None
-    sky_fraction: float | None = None
+    records: list[OverlayRecord]
     expression: str | None = None
     expressions: list[str]
     moc_url: str
@@ -52,15 +56,13 @@ async def list_surveys() -> SurveyCatalog:
 
 
 def _status(o: Overlay) -> OverlayStatus:
-    rec = get_mocserver().resolve(o.id, o.expressions)
+    recs = get_mocserver().resolve(o.id, o.expressions)
     return OverlayStatus(
         id=o.id,
         label=o.label,
-        resolved=rec is not None,
-        record_id=rec.id if rec else None,
-        title=rec.title if rec else None,
-        sky_fraction=rec.sky_fraction if rec else None,
-        expression=rec.expression if rec else None,
+        resolved=bool(recs),
+        records=[OverlayRecord(id=r.id, title=r.title, sky_fraction=r.sky_fraction) for r in recs],
+        expression=recs[0].expression if recs else None,
         expressions=o.expressions,
         moc_url=o.moc_path,
     )
@@ -87,25 +89,26 @@ async def overlay_moc(overlay_id: str) -> Response:
     if o is None:
         raise HTTPException(status_code=404, detail=f"Unknown overlay '{overlay_id}'")
     client = get_mocserver()
-    rec = await run_in_threadpool(client.resolve, o.id, o.expressions)
-    if rec is None:
+    recs = await run_in_threadpool(client.resolve, o.id, o.expressions)
+    if not recs:
         raise HTTPException(
             status_code=502,
             detail=f"No MOCServer record found for overlay '{overlay_id}' "
             f"(tried: {', '.join(o.expressions)})",
         )
+    ids = [r.id for r in recs]
     try:
-        data = await run_in_threadpool(client.fetch_moc_fits, rec.id)
+        data = await run_in_threadpool(client.fetch_union_fits, ids)
     except Exception as exc:  # noqa: BLE001 - remote service
         raise HTTPException(
-            status_code=502, detail=f"Could not fetch MOC for {rec.id}: {exc}"
+            status_code=502, detail=f"Could not fetch MOC for {', '.join(ids)}: {exc}"
         ) from exc
     return Response(
         content=data,
         media_type="application/fits",
         headers={
             "Cache-Control": "public, max-age=86400",
-            "X-Moc-Record": rec.id,
+            "X-Moc-Records": ", ".join(ids),
             "Content-Disposition": f'inline; filename="{overlay_id}.fits"',
         },
     )

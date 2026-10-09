@@ -77,11 +77,15 @@ Edit `backend/app/services/surveys.py` to change them.
 
 Aladin Lite's `A.MOCFromURL` needs a FITS MOC, so overlays are served by the backend rather than
 fetched from CDS directly. For each overlay the backend searches the CDS MOCServer with the
-expressions listed in `surveys.py` (tried in order, e.g. `ID=CDS/B/hst/*`), keeps the matching
-record with the widest sky coverage, downloads its MOC as FITS and caches it for a day.
-`GET /api/overlays` shows which record each overlay resolved to, which is the first thing to
-check when an overlay shows "failed" in a pane's MOC menu. Adjust the expressions if the
-resolved record is not the one you want.
+expressions listed in `surveys.py` (tried in order, e.g. `ID=ESAVO/P/JWST/*`), takes every
+matching record with non-zero coverage, downloads each MOC as FITS, unions them with mocpy and
+caches the result for a day. `GET /api/overlays` shows which records each overlay resolved to,
+which is the first thing to check when an overlay shows "failed" in a pane's MOC menu.
+
+The MOCServer has no single all-observations record for JWST, MUSE or ALMA. JWST and HST use
+ESA's per-instrument image coverage maps, MUSE uses the CDS MUSE cube collections, and ALMA is
+limited to the PHANGS-ALMA and ALMA-IMF collections until the archive module derives footprints
+from the ALMA archive itself.
 
 ## Viewer synchronisation
 
